@@ -23,7 +23,22 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      // Framer Motion's lowercase namespace is used in JSX member expressions
+      // (for example, <motion.div />), which ESLint does not recognise as a use.
+      'no-unused-vars': ['error', { varsIgnorePattern: '^(motion|[A-Z_])' }],
+    },
+  },
+  {
+    files: ['server.js'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
+  {
+    files: ['src/context/**/*.jsx'],
+    rules: {
+      // Context providers intentionally export their companion hook.
+      'react-refresh/only-export-components': 'off',
     },
   },
 ])

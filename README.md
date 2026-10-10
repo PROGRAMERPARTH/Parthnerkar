@@ -44,19 +44,19 @@ Make sure you have [Node.js](https://nodejs.org/) installed on your machine.
    VITE_APP_TITLE=Portfolio Builder
    VITE_APP_URL=http://localhost:5173
    
-   # Admin Authentication Password (for adding/editing content)
-   VITE_ADMIN_PASSWORD=admin123
+   # Admin Authentication Password (kept on the server, never in the client bundle)
+   ADMIN_PASSWORD=use-a-strong-unique-password
    ```
 
-4. Start the development server:
+4. Start the development server (frontend and API together):
    ```bash
    npm run dev
    ```
 
-5. Open [http://localhost:5173](http://localhost:5173) in your browser.
+5. Open [http://localhost:5173](http://localhost:5173) in your browser. For a production-like run, use `npm run serve` and open [http://localhost:3000](http://localhost:3000).
 
 ## 🔒 Security
-To prevent unauthorized users from modifying your publicly deployed portfolio, editing actions are protected. Before you can *Add*, *Edit*, or *Delete* any project, skill, or certification, the application will prompt you for the admin password (`VITE_ADMIN_PASSWORD`).
+Editing actions are protected by a server-side, HTTP-only session. Set `ADMIN_PASSWORD` in the server environment; do not expose an admin secret through a `VITE_` variable. The server accepts an existing `VITE_ADMIN_PASSWORD` only as a backwards-compatible fallback, but new deployments should migrate to `ADMIN_PASSWORD`.
 
 ## 📄 License
 This project is open-source and available under the MIT License.

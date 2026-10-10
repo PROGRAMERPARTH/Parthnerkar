@@ -3,12 +3,23 @@
    Glassmorphism overlay with Framer Motion
    ============================================ */
 
+import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { IoClose } from 'react-icons/io5';
 import { useTheme } from '../context/ThemeContext';
 
 export default function Modal({ isOpen, onClose, title, children }) {
   const { isDark } = useTheme();
+  const titleId = 'modal-title';
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   return (
     <AnimatePresence>
@@ -38,10 +49,13 @@ export default function Modal({ isOpen, onClose, title, children }) {
                   : 'bg-white/90 backdrop-blur-xl border border-surface-200'
               }`}
               onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={titleId}
             >
               {/* Header */}
               <div className="flex items-center justify-between mb-6">
-                <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-surface-800'}`}>
+                <h2 id={titleId} className={`text-xl font-bold ${isDark ? 'text-white' : 'text-surface-800'}`}>
                   {title}
                 </h2>
                 <button

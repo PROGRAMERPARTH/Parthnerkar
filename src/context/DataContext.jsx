@@ -1,87 +1,41 @@
 /* ============================================
    Data Context — Manages skills, projects, 
-   certificates with LocalStorage persistence
+   certificates with Server Database & LocalStorage sync
    ============================================ */
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 const DataContext = createContext(null);
 
-// ---- Default seed data ----
-const DEFAULT_SKILLS = [
-  { id: '1', name: 'Python', category: 'Programming', proficiency: 90 },
-  { id: '2', name: 'JavaScript', category: 'Programming', proficiency: 85 },
-  { id: '3', name: 'C++', category: 'Programming', proficiency: 75 },
-  { id: '4', name: 'Java', category: 'Programming', proficiency: 70 },
-  { id: '5', name: 'React.js', category: 'Web Development', proficiency: 88 },
-  { id: '6', name: 'Node.js', category: 'Web Development', proficiency: 80 },
-  { id: '7', name: 'Tailwind CSS', category: 'Web Development', proficiency: 92 },
-  { id: '8', name: 'HTML/CSS', category: 'Web Development', proficiency: 95 },
-  { id: '9', name: 'Git & GitHub', category: 'Tools & Technologies', proficiency: 88 },
-  { id: '10', name: 'Docker', category: 'Tools & Technologies', proficiency: 65 },
-  { id: '11', name: 'TensorFlow', category: 'Tools & Technologies', proficiency: 72 },
-  { id: '12', name: 'VS Code', category: 'Tools & Technologies', proficiency: 95 },
-];
+// ---- Default seed data (empty - demo data removed) ----
+const DEFAULT_SKILLS = [];
+const DEFAULT_PROJECTS = [];
+const DEFAULT_CERTIFICATES = [];
 
-const DEFAULT_PROJECTS = [
-  {
-    id: '1',
-    title: 'AI Chatbot Platform',
-    description: 'A conversational AI chatbot built with NLP pipelines, supporting multiple intents and real-time responses.',
-    techStack: 'Python, Flask, TensorFlow, React',
-    githubUrl: 'https://github.com',
-    liveUrl: 'https://example.com',
-  },
-  {
-    id: '2',
-    title: 'E-Commerce Dashboard',
-    description: 'Full-stack dashboard with analytics, sales tracking, and inventory management for online stores.',
-    techStack: 'React, Node.js, MongoDB, Chart.js',
-    githubUrl: 'https://github.com',
-    liveUrl: 'https://example.com',
-  },
-  {
-    id: '3',
-    title: 'Portfolio Builder',
-    description: 'A dynamic portfolio generator that lets users create professional portfolios with customizable sections.',
-    techStack: 'React, Tailwind CSS, Framer Motion',
-    githubUrl: 'https://github.com',
-    liveUrl: 'https://example.com',
-  },
-];
-
-const DEFAULT_CERTIFICATES = [
-  {
-    id: '1',
-    title: 'Deep Learning Specialization',
-    issuer: 'Coursera — Andrew Ng',
-    description: 'Five-course specialization covering neural networks, CNNs, RNNs, and sequence models.',
-    fileUrl: '#',
-  },
-  {
-    id: '2',
-    title: 'AWS Cloud Practitioner',
-    issuer: 'Amazon Web Services',
-    description: 'Foundational understanding of AWS Cloud concepts, services, and terminology.',
-    fileUrl: '#',
-  },
-  {
-    id: '3',
-    title: 'React Developer Certificate',
-    issuer: 'Meta (Coursera)',
-    description: 'Professional certificate covering advanced React patterns, testing, and performance optimization.',
-    fileUrl: '#',
-  },
-];
+const DEMO_SKILL_NAMES = new Set([
+  'Python', 'JavaScript', 'C++', 'Java', 'React.js', 'Node.js',
+  'Tailwind CSS', 'HTML/CSS', 'Git & GitHub', 'Docker', 'TensorFlow', 'VS Code',
+]);
+const DEMO_PROJECT_TITLES = new Set([
+  'AI Chatbot Platform', 'E-Commerce Dashboard', 'Portfolio Builder',
+]);
+const DEMO_CERT_TITLES = new Set([
+  'Deep Learning Specialization', 'AWS Cloud Practitioner', 'React Developer Certificate',
+]);
 
 // ---- Helper: generate unique IDs ----
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
 // ---- Helper: LocalStorage read/write ----
-function loadFromStorage(key, fallback) {
+function loadFromStorage(key, fallback, isDemoFilter) {
   try {
     const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
+    const value = raw ? JSON.parse(raw) : fallback;
+    const list = Array.isArray(fallback) && !Array.isArray(value) ? fallback : value;
+    if (Array.isArray(list) && isDemoFilter) {
+      return list.filter((item) => !isDemoFilter(item));
+    }
+    return list;
   } catch {
     return fallback;
   }
@@ -97,66 +51,229 @@ function saveToStorage(key, value) {
 
 // ---- Provider Component ----
 export function DataProvider({ children }) {
-  const [skills, setSkills] = useState(() => loadFromStorage('portfolio_skills', DEFAULT_SKILLS));
-  const [projects, setProjects] = useState(() => loadFromStorage('portfolio_projects', DEFAULT_PROJECTS));
-  const [certificates, setCertificates] = useState(() => loadFromStorage('portfolio_certificates', DEFAULT_CERTIFICATES));
+  const [skills, setSkills] = useState(() =>
+    loadFromStorage('portfolio_skills', DEFAULT_SKILLS, (s) => DEMO_SKILL_NAMES.has(s?.name) || ['1','2','3','4','5','6','7','8','9','10','11','12'].includes(String(s?.id)))
+  );
+  const [projects, setProjects] = useState(() =>
+    loadFromStorage('portfolio_projects', DEFAULT_PROJECTS, (p) => DEMO_PROJECT_TITLES.has(p?.title) || ['1','2','3'].includes(String(p?.id)))
+  );
+  const [certificates, setCertificates] = useState(() =>
+    loadFromStorage('portfolio_certificates', DEFAULT_CERTIFICATES, (c) => DEMO_CERT_TITLES.has(c?.title) || ['1','2','3'].includes(String(c?.id)))
+  );
 
-  // Authentication State
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return sessionStorage.getItem('portfolio_auth') === 'true';
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  const authenticate = (password) => {
-    const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD || 'admin123';
-    if (password === adminPassword) {
-      setIsAuthenticated(true);
-      sessionStorage.setItem('portfolio_auth', 'true');
-      return true;
+  // Check auth session on startup
+  useEffect(() => {
+    let active = true;
+    fetch('/api/auth/session', { credentials: 'same-origin' })
+      .then((response) => (response.ok ? response.json() : { authenticated: false }))
+      .then((data) => {
+        if (active) setIsAuthenticated(data.authenticated === true);
+      })
+      .catch(() => {
+        if (active) setIsAuthenticated(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Fetch initial data from server database
+  useEffect(() => {
+    let active = true;
+    fetch('/api/data')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!active || !data) return;
+        if (Array.isArray(data.skills)) setSkills(data.skills);
+        if (Array.isArray(data.projects)) setProjects(data.projects);
+        if (Array.isArray(data.certificates)) setCertificates(data.certificates);
+      })
+      .catch((err) => {
+        console.warn('Could not load data from server database, using cached local data:', err);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const authenticate = async (password) => {
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ password }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.authenticated) {
+        setIsAuthenticated(true);
+        return { success: true };
+      }
+      return { success: false, error: data.error || 'Authentication failed.' };
+    } catch {
+      return { success: false, error: 'Unable to reach the authentication service.' };
     }
-    return false;
   };
 
-  // Persist whenever state changes
+  const logout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+    } catch {
+      // ignore network errors on logout
+    }
+    setIsAuthenticated(false);
+  };
+
+  // Persist locally whenever state changes as cache
   useEffect(() => saveToStorage('portfolio_skills', skills), [skills]);
   useEffect(() => saveToStorage('portfolio_projects', projects), [projects]);
   useEffect(() => saveToStorage('portfolio_certificates', certificates), [certificates]);
 
   // ---- Skills CRUD ----
-  const addSkill = useCallback((skill) => {
-    setSkills((prev) => [...prev, { ...skill, id: generateId() }]);
+  const addSkill = useCallback(async (skill) => {
+    try {
+      const res = await fetch('/api/skills', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(skill),
+      });
+      if (res.ok) {
+        const created = await res.json();
+        setSkills((prev) => [...prev, created]);
+        return created;
+      }
+    } catch (err) {
+      console.error('Error saving skill to server database:', err);
+    }
+    const local = { ...skill, id: generateId() };
+    setSkills((prev) => [...prev, local]);
+    return local;
   }, []);
 
-  const updateSkill = useCallback((id, updated) => {
+  const updateSkill = useCallback(async (id, updated) => {
+    try {
+      await fetch(`/api/skills/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(updated),
+      });
+    } catch (err) {
+      console.error('Error updating skill in server database:', err);
+    }
     setSkills((prev) => prev.map((s) => (s.id === id ? { ...s, ...updated } : s)));
   }, []);
 
-  const deleteSkill = useCallback((id) => {
+  const deleteSkill = useCallback(async (id) => {
+    try {
+      await fetch(`/api/skills/${id}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      });
+    } catch (err) {
+      console.error('Error deleting skill from server database:', err);
+    }
     setSkills((prev) => prev.filter((s) => s.id !== id));
   }, []);
 
   // ---- Projects CRUD ----
-  const addProject = useCallback((project) => {
-    setProjects((prev) => [...prev, { ...project, id: generateId() }]);
+  const addProject = useCallback(async (project) => {
+    try {
+      const res = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(project),
+      });
+      if (res.ok) {
+        const created = await res.json();
+        setProjects((prev) => [...prev, created]);
+        return created;
+      }
+    } catch (err) {
+      console.error('Error saving project to server database:', err);
+    }
+    const local = { ...project, id: generateId() };
+    setProjects((prev) => [...prev, local]);
+    return local;
   }, []);
 
-  const updateProject = useCallback((id, updated) => {
+  const updateProject = useCallback(async (id, updated) => {
+    try {
+      await fetch(`/api/projects/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(updated),
+      });
+    } catch (err) {
+      console.error('Error updating project in server database:', err);
+    }
     setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, ...updated } : p)));
   }, []);
 
-  const deleteProject = useCallback((id) => {
+  const deleteProject = useCallback(async (id) => {
+    try {
+      await fetch(`/api/projects/${id}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      });
+    } catch (err) {
+      console.error('Error deleting project from server database:', err);
+    }
     setProjects((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
   // ---- Certificates CRUD ----
-  const addCertificate = useCallback((cert) => {
-    setCertificates((prev) => [...prev, { ...cert, id: generateId() }]);
+  const addCertificate = useCallback(async (cert) => {
+    try {
+      const res = await fetch('/api/certificates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(cert),
+      });
+      if (res.ok) {
+        const created = await res.json();
+        setCertificates((prev) => [...prev, created]);
+        return created;
+      }
+    } catch (err) {
+      console.error('Error saving certificate to server database:', err);
+    }
+    const local = { ...cert, id: generateId() };
+    setCertificates((prev) => [...prev, local]);
+    return local;
   }, []);
 
-  const updateCertificate = useCallback((id, updated) => {
+  const updateCertificate = useCallback(async (id, updated) => {
+    try {
+      await fetch(`/api/certificates/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(updated),
+      });
+    } catch (err) {
+      console.error('Error updating certificate in server database:', err);
+    }
     setCertificates((prev) => prev.map((c) => (c.id === id ? { ...c, ...updated } : c)));
   }, []);
 
-  const deleteCertificate = useCallback((id) => {
+  const deleteCertificate = useCallback(async (id) => {
+    try {
+      await fetch(`/api/certificates/${id}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      });
+    } catch (err) {
+      console.error('Error deleting certificate from server database:', err);
+    }
     setCertificates((prev) => prev.filter((c) => c.id !== id));
   }, []);
 
@@ -164,7 +281,7 @@ export function DataProvider({ children }) {
     skills, addSkill, updateSkill, deleteSkill,
     projects, addProject, updateProject, deleteProject,
     certificates, addCertificate, updateCertificate, deleteCertificate,
-    isAuthenticated, authenticate,
+    isAuthenticated, authenticate, logout,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

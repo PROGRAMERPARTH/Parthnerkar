@@ -18,6 +18,7 @@ import Modal from '../components/Modal';
 import PasswordPromptModal from '../components/PasswordPromptModal';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
+import { getSafeExternalUrl } from '../utils/url';
 
 const EMPTY_FORM = { title: '', issuer: '', description: '', fileUrl: '' };
 
@@ -31,27 +32,32 @@ export default function CertificatesSection() {
   const [form, setForm] = useState(EMPTY_FORM);
 
   // ---- Handlers ----
-  const executePendingAction = () => {
-    if (!pendingAction) return;
-    if (pendingAction.type === 'add') {
+  const executeAction = (action) => {
+    if (!action) return;
+    if (action.type === 'add') {
       setEditingCert(null);
       setForm(EMPTY_FORM);
       setModalOpen(true);
-    } else if (pendingAction.type === 'edit') {
-      const cert = pendingAction.payload;
+    } else if (action.type === 'edit') {
+      const cert = action.payload;
       setEditingCert(cert);
       setForm({ title: cert.title, issuer: cert.issuer, description: cert.description, fileUrl: cert.fileUrl });
       setModalOpen(true);
-    } else if (pendingAction.type === 'delete') {
-      const { id, title } = pendingAction.payload;
+    } else if (action.type === 'delete') {
+      const { id, title } = action.payload;
       deleteCertificate(id);
       toast.success(`"${title}" deleted`);
     }
+  };
+
+  const executePendingAction = () => {
+    executeAction(pendingAction);
     setPendingAction(null);
     setAuthModalOpen(false);
   };
 
   const requireAuth = (action) => {
+    // Always require admin password for adding, editing, or deleting
     setPendingAction(action);
     setAuthModalOpen(true);
   };
@@ -61,21 +67,30 @@ export default function CertificatesSection() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.title.trim()) {
-      toast.error('Certificate title is required');
+    if (!form.title.trim() || !form.issuer.trim() || !form.description.trim()) {
+      toast.error('Certificate title, issuer, and description are required');
       return;
     }
+    const fileUrl = getSafeExternalUrl(form.fileUrl);
+    if (form.fileUrl.trim() && !fileUrl) {
+      toast.error('Certificate URL must use http:// or https://');
+      return;
+    }
+    const certificate = { ...form, fileUrl: fileUrl || '' };
     if (editingCert) {
-      updateCertificate(editingCert.id, form);
+      updateCertificate(editingCert.id, certificate);
       toast.success('Certificate updated!');
     } else {
-      addCertificate(form);
+      addCertificate(certificate);
       toast.success('Certificate added!');
     }
     setModalOpen(false);
   };
 
-  const handleDelete = (id, title) => requireAuth({ type: 'delete', payload: { id, title } });
+  const handleDelete = (id, title) => {
+    setPendingAction({ type: 'delete', payload: { id, title } });
+    setAuthModalOpen(true);
+  };
 
   return (
     <SectionWrapper
@@ -98,8 +113,11 @@ export default function CertificatesSection() {
       {/* Certificates grid */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <AnimatePresence mode="popLayout">
-          {certificates.map((cert, i) => (
-            <motion.div
+          {certificates.map((cert, i) => {
+            const certificateUrl = getSafeExternalUrl(cert.fileUrl);
+
+            return (
+              <motion.div
               key={cert.id}
               layout
               initial={{ opacity: 0, y: 30 }}
@@ -122,13 +140,14 @@ export default function CertificatesSection() {
                 >
                   <IoRibbonOutline size={22} />
                 </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
                   <button
                     onClick={() => openEdit(cert)}
                     className={`p-1.5 rounded-lg cursor-pointer ${
                       isDark ? 'hover:bg-white/10 text-surface-200' : 'hover:bg-surface-100 text-surface-600'
                     }`}
                     title="Edit"
+                    aria-label={`Edit ${cert.title}`}
                   >
                     <IoCreateOutline size={16} />
                   </button>
@@ -136,6 +155,7 @@ export default function CertificatesSection() {
                     onClick={() => handleDelete(cert.id, cert.title)}
                     className="p-1.5 rounded-lg hover:bg-danger-500/15 text-danger-500 cursor-pointer"
                     title="Delete"
+                    aria-label={`Delete ${cert.title}`}
                   >
                     <IoTrashOutline size={16} />
                   </button>
@@ -156,9 +176,9 @@ export default function CertificatesSection() {
               </p>
 
               {/* View button */}
-              {cert.fileUrl && (
+              {certificateUrl && (
                 <a
-                  href={cert.fileUrl}
+                  href={certificateUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={`mt-4 inline-flex items-center gap-1.5 text-sm font-medium transition-colors ${
@@ -168,8 +188,9 @@ export default function CertificatesSection() {
                   <IoOpenOutline size={15} /> View Certificate
                 </a>
               )}
-            </motion.div>
-          ))}
+              </motion.div>
+            );
+          })}
         </AnimatePresence>
       </div>
 
@@ -193,6 +214,7 @@ export default function CertificatesSection() {
             </label>
             <input
               type="text"
+              id="certificate-title"
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
               placeholder="e.g. Deep Learning Specialization"
@@ -202,6 +224,7 @@ export default function CertificatesSection() {
                   : 'bg-surface-50 border border-surface-200 text-surface-800 focus:border-primary-500 placeholder:text-surface-700/40'
               }`}
               autoFocus
+              required
             />
           </div>
 
@@ -212,9 +235,11 @@ export default function CertificatesSection() {
             </label>
             <input
               type="text"
+              id="certificate-issuer"
               value={form.issuer}
               onChange={(e) => setForm({ ...form, issuer: e.target.value })}
               placeholder="e.g. Coursera"
+              required
               className={`w-full px-4 py-2.5 rounded-xl outline-none transition-all ${
                 isDark
                   ? 'bg-white/5 border border-white/10 text-white focus:border-primary-500 placeholder:text-surface-200/30'
@@ -230,9 +255,11 @@ export default function CertificatesSection() {
             </label>
             <textarea
               rows={3}
+              id="certificate-description"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               placeholder="Short description…"
+              required
               className={`w-full px-4 py-2.5 rounded-xl outline-none transition-all resize-none ${
                 isDark
                   ? 'bg-white/5 border border-white/10 text-white focus:border-primary-500 placeholder:text-surface-200/30'
@@ -248,6 +275,7 @@ export default function CertificatesSection() {
             </label>
             <input
               type="url"
+              id="certificate-file-url"
               value={form.fileUrl}
               onChange={(e) => setForm({ ...form, fileUrl: e.target.value })}
               placeholder="https://…"
@@ -271,8 +299,33 @@ export default function CertificatesSection() {
       {/* Auth Modal */}
       <PasswordPromptModal
         isOpen={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
+        onClose={() => {
+          setAuthModalOpen(false);
+          setPendingAction(null);
+        }}
         onSuccess={executePendingAction}
+        title={
+          pendingAction?.type === 'delete'
+            ? 'Confirm Deletion'
+            : pendingAction?.type === 'add'
+            ? 'Add Certificate'
+            : 'Edit Certificate'
+        }
+        description={
+          pendingAction?.type === 'delete'
+            ? `Please enter the password to delete "${pendingAction?.payload?.title}".`
+            : pendingAction?.type === 'add'
+            ? 'Please enter the password to add a new certificate.'
+            : `Please enter the password to edit "${pendingAction?.payload?.title}".`
+        }
+        confirmText={
+          pendingAction?.type === 'delete'
+            ? 'Delete'
+            : pendingAction?.type === 'add'
+            ? 'Continue'
+            : 'Edit'
+        }
+        isDanger={pendingAction?.type === 'delete'}
       />
     </SectionWrapper>
   );

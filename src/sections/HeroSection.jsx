@@ -5,9 +5,11 @@
 
 import { motion } from 'framer-motion';
 import { IoArrowDown, IoDownloadOutline } from 'react-icons/io5';
+import toast from 'react-hot-toast';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { generateResume } from '../utils/generateResume';
+import ParticlePortrait from '../components/ParticlePortrait';
 
 export default function HeroSection() {
   const { isDark } = useTheme();
@@ -15,13 +17,19 @@ export default function HeroSection() {
 
   const handleDownload = (e) => {
     e.preventDefault();
-    generateResume(skills, projects, certificates);
+    try {
+      generateResume(skills, projects, certificates);
+      toast.success('Resume PDF downloaded!');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to download resume.');
+    }
   };
 
   return (
     <section
       id="hero"
-      className="relative min-h-screen flex items-center justify-center overflow-hidden px-4"
+      className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden px-4 pt-28 pb-20 sm:pt-32 sm:pb-24"
     >
       {/* Animated gradient orbs */}
       <div className="pointer-events-none absolute inset-0">
@@ -55,7 +63,7 @@ export default function HeroSection() {
       )}
 
       {/* Content */}
-      <div className="relative z-10 text-center max-w-3xl">
+      <div className="relative z-10 text-center max-w-3xl my-auto">
         {/* Greeting badge */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -127,33 +135,27 @@ export default function HeroSection() {
           </a>
         </motion.div>
 
-        {/* Profile image placeholder - a stylized avatar circle */}
+        {/* Futuristic Animated Profile Portrait */}
         <motion.div
-          className="mt-12 flex justify-center"
-          initial={{ opacity: 0, scale: 0.8 }}
+          className="mt-8 sm:mt-10 md:mt-12 flex justify-center"
+          initial={{ opacity: 0, scale: 0.85 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.8, duration: 0.6, type: 'spring' }}
+          transition={{ delay: 0.8, duration: 0.7, type: 'spring', bounce: 0.3 }}
         >
-          <div className="relative">
-            <div
-              className={`w-28 h-28 md:w-36 md:h-36 rounded-full overflow-hidden glow ${
-                isDark ? 'ring-2 ring-primary-500/30' : 'ring-2 ring-primary-200'
-              }`}
-            >
-              {/* Gradient avatar placeholder */}
-              <div className="w-full h-full bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white text-4xl md:text-5xl font-bold select-none">
-                PN
-              </div>
-            </div>
-            {/* Status dot */}
-            <span className="absolute bottom-1 right-1 w-5 h-5 bg-success-500 rounded-full ring-4 ring-surface-900" />
-          </div>
+          <ParticlePortrait
+            src="/parth-profile.jpg"
+            alt="Parth Nerkar - AI & Data Science"
+            particleCount={42}
+            speed={1.0}
+            glowIntensity={1.0}
+            showStatus={true}
+          />
         </motion.div>
       </div>
 
       {/* Scroll indicator */}
       <motion.div
-        className="absolute bottom-8 left-1/2 -translate-x-1/2"
+        className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2"
         animate={{ y: [0, 10, 0] }}
         transition={{ duration: 2, repeat: Infinity }}
       >

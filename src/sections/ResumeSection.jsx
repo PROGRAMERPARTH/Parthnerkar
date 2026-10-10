@@ -2,20 +2,49 @@
    Resume Section — Download button + preview
    ============================================ */
 
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { IoDownloadOutline, IoDocumentTextOutline, IoEyeOutline } from 'react-icons/io5';
+import toast from 'react-hot-toast';
 import SectionWrapper from '../components/SectionWrapper';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
-import { generateResume } from '../utils/generateResume';
+import { generateResume, previewResume } from '../utils/generateResume';
 
 export default function ResumeSection() {
   const { isDark } = useTheme();
   const { skills, projects, certificates } = useData();
+  const [loadingAction, setLoadingAction] = useState(null); // 'download' | 'preview' | null
 
-  const handleDownload = (e) => {
+  const handleDownload = async (e) => {
     e.preventDefault();
-    generateResume(skills, projects, certificates);
+    if (loadingAction) return;
+    try {
+      setLoadingAction('download');
+      toast.loading('Generating PDF resume...', { id: 'resume-op' });
+      await generateResume(skills, projects, certificates);
+      toast.success('Resume downloaded!', { id: 'resume-op' });
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to generate PDF resume.', { id: 'resume-op' });
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+  const handlePreview = async () => {
+    if (loadingAction) return;
+    try {
+      setLoadingAction('preview');
+      toast.loading('Opening PDF preview...', { id: 'resume-op' });
+      await previewResume(skills, projects, certificates);
+      toast.dismiss('resume-op');
+    } catch (error) {
+      console.error(error);
+      toast.error(error.message || 'Failed to preview PDF.', { id: 'resume-op' });
+    } finally {
+      setLoadingAction(null);
+    }
   };
 
   return (
@@ -60,33 +89,36 @@ export default function ResumeSection() {
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               {/* Download button */}
-              <motion.a
-                href="#"
+              <motion.button
+                type="button"
                 onClick={handleDownload}
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.97 }}
-                className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl font-semibold text-white bg-gradient-to-r from-primary-500 to-accent-500 shadow-lg shadow-primary-500/25 hover:shadow-primary-500/40 transition-shadow"
+                disabled={Boolean(loadingAction)}
+                whileHover={{ scale: loadingAction ? 1 : 1.04 }}
+                whileTap={{ scale: loadingAction ? 1 : 0.97 }}
+                className={`inline-flex items-center gap-2 px-7 py-3.5 rounded-xl font-semibold text-white bg-gradient-to-r from-primary-500 to-accent-500 shadow-lg shadow-primary-500/25 hover:shadow-primary-500/40 transition-all ${
+                  loadingAction ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'
+                }`}
               >
                 <IoDownloadOutline size={20} />
-                Download Resume
-              </motion.a>
+                {loadingAction === 'download' ? 'Generating PDF...' : 'Download Resume'}
+              </motion.button>
 
               {/* Preview button */}
-              <motion.a
-                href="#"
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.97 }}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`inline-flex items-center gap-2 px-7 py-3.5 rounded-xl font-semibold border transition-colors ${
+              <motion.button
+                type="button"
+                onClick={handlePreview}
+                disabled={Boolean(loadingAction)}
+                whileHover={{ scale: loadingAction ? 1 : 1.04 }}
+                whileTap={{ scale: loadingAction ? 1 : 0.97 }}
+                className={`inline-flex items-center gap-2 px-7 py-3.5 rounded-xl font-semibold border transition-all ${
                   isDark
                     ? 'border-white/15 text-surface-200 hover:bg-white/8'
                     : 'border-surface-200 text-surface-700 hover:bg-surface-100'
-                }`}
+                } ${loadingAction ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
               >
                 <IoEyeOutline size={20} />
-                Preview
-              </motion.a>
+                {loadingAction === 'preview' ? 'Opening PDF...' : 'Preview PDF'}
+              </motion.button>
             </div>
           </div>
         </motion.div>

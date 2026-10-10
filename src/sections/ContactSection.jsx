@@ -30,16 +30,17 @@ export default function ContactSection() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [sending, setSending] = useState(false);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.name.trim() || !form.email.trim() || !form.message.trim()) {
       toast.error('Please fill in all fields');
       return;
     }
     setSending(true);
-    // Simulate sending
-    await new Promise((r) => setTimeout(r, 1200));
-    toast.success('Message sent successfully! 🎉');
+    const subject = encodeURIComponent(`Portfolio enquiry from ${form.name.trim()}`);
+    const body = encodeURIComponent(`Name: ${form.name.trim()}\nEmail: ${form.email.trim()}\n\n${form.message.trim()}`);
+    window.location.href = `mailto:nerkarparth06@gmail.com?subject=${subject}&body=${body}`;
+    toast.success('Your email app has been opened with a draft.');
     setForm(EMPTY_FORM);
     setSending(false);
   };
@@ -70,6 +71,8 @@ export default function ContactSection() {
             />
             <input
               type="text"
+              aria-label="Your name"
+              required
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="Your Name"
@@ -85,6 +88,8 @@ export default function ContactSection() {
             />
             <input
               type="email"
+              aria-label="Your email address"
+              required
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               placeholder="your@email.com"
@@ -100,6 +105,8 @@ export default function ContactSection() {
             />
             <textarea
               rows={5}
+              aria-label="Your message"
+              required
               value={form.message}
               onChange={(e) => setForm({ ...form, message: e.target.value })}
               placeholder="Your message…"
@@ -125,7 +132,7 @@ export default function ContactSection() {
             ) : (
               <>
                 <IoSendOutline size={18} />
-                Send Message
+                Open Email Draft
               </>
             )}
           </motion.button>

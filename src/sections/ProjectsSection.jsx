@@ -19,6 +19,7 @@ import Modal from '../components/Modal';
 import PasswordPromptModal from '../components/PasswordPromptModal';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
+import { getSafeExternalUrl } from '../utils/url';
 
 const EMPTY_FORM = {
   title: '',
@@ -51,14 +52,14 @@ export default function ProjectsSection() {
   }, [projects, searchQuery]);
 
   // ---- Handlers ----
-  const executePendingAction = () => {
-    if (!pendingAction) return;
-    if (pendingAction.type === 'add') {
+  const executeAction = (action) => {
+    if (!action) return;
+    if (action.type === 'add') {
       setEditingProject(null);
       setForm(EMPTY_FORM);
       setModalOpen(true);
-    } else if (pendingAction.type === 'edit') {
-      const project = pendingAction.payload;
+    } else if (action.type === 'edit') {
+      const project = action.payload;
       setEditingProject(project);
       setForm({
         title: project.title,
@@ -68,16 +69,21 @@ export default function ProjectsSection() {
         liveUrl: project.liveUrl,
       });
       setModalOpen(true);
-    } else if (pendingAction.type === 'delete') {
-      const { id, title } = pendingAction.payload;
+    } else if (action.type === 'delete') {
+      const { id, title } = action.payload;
       deleteProject(id);
       toast.success(`"${title}" deleted`);
     }
+  };
+
+  const executePendingAction = () => {
+    executeAction(pendingAction);
     setPendingAction(null);
     setAuthModalOpen(false);
   };
 
   const requireAuth = (action) => {
+    // Always require admin password for adding, editing, or deleting
     setPendingAction(action);
     setAuthModalOpen(true);
   };
@@ -87,21 +93,31 @@ export default function ProjectsSection() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.title.trim()) {
-      toast.error('Project title is required');
+    if (!form.title.trim() || !form.description.trim() || !form.techStack.trim()) {
+      toast.error('Project title, description, and tech stack are required');
       return;
     }
+    const githubUrl = getSafeExternalUrl(form.githubUrl);
+    const liveUrl = getSafeExternalUrl(form.liveUrl);
+    if ((form.githubUrl.trim() && !githubUrl) || (form.liveUrl.trim() && !liveUrl)) {
+      toast.error('Links must use an http:// or https:// URL');
+      return;
+    }
+    const project = { ...form, githubUrl: githubUrl || '', liveUrl: liveUrl || '' };
     if (editingProject) {
-      updateProject(editingProject.id, form);
+      updateProject(editingProject.id, project);
       toast.success('Project updated!');
     } else {
-      addProject(form);
+      addProject(project);
       toast.success('Project added!');
     }
     setModalOpen(false);
   };
 
-  const handleDelete = (id, title) => requireAuth({ type: 'delete', payload: { id, title } });
+  const handleDelete = (id, title) => {
+    setPendingAction({ type: 'delete', payload: { id, title } });
+    setAuthModalOpen(true);
+  };
 
   return (
     <SectionWrapper id="projects" title="Projects" subtitle="Some of my recent work and side projects.">
@@ -137,8 +153,12 @@ export default function ProjectsSection() {
       {/* Projects grid */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <AnimatePresence mode="popLayout">
-          {filteredProjects.map((project, i) => (
-            <motion.article
+          {filteredProjects.map((project, i) => {
+            const githubUrl = getSafeExternalUrl(project.githubUrl);
+            const liveUrl = getSafeExternalUrl(project.liveUrl);
+
+            return (
+              <motion.article
               key={project.id}
               layout
               initial={{ opacity: 0, y: 30 }}
@@ -159,13 +179,14 @@ export default function ProjectsSection() {
                   <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-surface-800'}`}>
                     {project.title}
                   </h3>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
                     <button
                       onClick={() => openEdit(project)}
                       className={`p-1.5 rounded-lg cursor-pointer ${
                         isDark ? 'hover:bg-white/10 text-surface-200' : 'hover:bg-surface-100 text-surface-600'
                       }`}
                       title="Edit"
+                      aria-label={`Edit ${project.title}`}
                     >
                       <IoCreateOutline size={16} />
                     </button>
@@ -173,6 +194,7 @@ export default function ProjectsSection() {
                       onClick={() => handleDelete(project.id, project.title)}
                       className="p-1.5 rounded-lg hover:bg-danger-500/15 text-danger-500 cursor-pointer"
                       title="Delete"
+                      aria-label={`Delete ${project.title}`}
                     >
                       <IoTrashOutline size={16} />
                     </button>
@@ -207,9 +229,9 @@ export default function ProjectsSection() {
               <div className={`flex items-center gap-3 px-5 py-3 border-t ${
                 isDark ? 'border-white/5' : 'border-surface-100'
               }`}>
-                {project.githubUrl && (
+                  {githubUrl && (
                   <a
-                    href={project.githubUrl}
+                    href={githubUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className={`inline-flex items-center gap-1.5 text-sm font-medium transition-colors ${
@@ -219,9 +241,9 @@ export default function ProjectsSection() {
                     <IoLogoGithub size={16} /> Code
                   </a>
                 )}
-                {project.liveUrl && (
+                {liveUrl && (
                   <a
-                    href={project.liveUrl}
+                    href={liveUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-400 hover:text-primary-300 transition-colors"
@@ -230,8 +252,9 @@ export default function ProjectsSection() {
                   </a>
                 )}
               </div>
-            </motion.article>
-          ))}
+              </motion.article>
+            );
+          })}
         </AnimatePresence>
       </div>
 
@@ -255,6 +278,7 @@ export default function ProjectsSection() {
             </label>
             <input
               type="text"
+              id="project-title"
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
               placeholder="e.g. AI Chatbot"
@@ -264,6 +288,7 @@ export default function ProjectsSection() {
                   : 'bg-surface-50 border border-surface-200 text-surface-800 focus:border-primary-500 placeholder:text-surface-700/40'
               }`}
               autoFocus
+              required
             />
           </div>
 
@@ -274,9 +299,11 @@ export default function ProjectsSection() {
             </label>
             <textarea
               rows={3}
+              id="project-description"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               placeholder="Brief project description…"
+              required
               className={`w-full px-4 py-2.5 rounded-xl outline-none transition-all resize-none ${
                 isDark
                   ? 'bg-white/5 border border-white/10 text-white focus:border-primary-500 placeholder:text-surface-200/30'
@@ -292,9 +319,11 @@ export default function ProjectsSection() {
             </label>
             <input
               type="text"
+              id="project-tech-stack"
               value={form.techStack}
               onChange={(e) => setForm({ ...form, techStack: e.target.value })}
               placeholder="React, Node.js, MongoDB"
+              required
               className={`w-full px-4 py-2.5 rounded-xl outline-none transition-all ${
                 isDark
                   ? 'bg-white/5 border border-white/10 text-white focus:border-primary-500 placeholder:text-surface-200/30'
@@ -311,6 +340,7 @@ export default function ProjectsSection() {
               </label>
               <input
                 type="url"
+              id="project-github-url"
                 value={form.githubUrl}
                 onChange={(e) => setForm({ ...form, githubUrl: e.target.value })}
                 placeholder="https://…"
@@ -327,6 +357,7 @@ export default function ProjectsSection() {
               </label>
               <input
                 type="url"
+              id="project-live-url"
                 value={form.liveUrl}
                 onChange={(e) => setForm({ ...form, liveUrl: e.target.value })}
                 placeholder="https://…"
@@ -351,8 +382,33 @@ export default function ProjectsSection() {
       {/* Auth Modal */}
       <PasswordPromptModal
         isOpen={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
+        onClose={() => {
+          setAuthModalOpen(false);
+          setPendingAction(null);
+        }}
         onSuccess={executePendingAction}
+        title={
+          pendingAction?.type === 'delete'
+            ? 'Confirm Deletion'
+            : pendingAction?.type === 'add'
+            ? 'Add Project'
+            : 'Edit Project'
+        }
+        description={
+          pendingAction?.type === 'delete'
+            ? `Please enter the password to delete "${pendingAction?.payload?.title}".`
+            : pendingAction?.type === 'add'
+            ? 'Please enter the password to add a new project.'
+            : `Please enter the password to edit "${pendingAction?.payload?.title}".`
+        }
+        confirmText={
+          pendingAction?.type === 'delete'
+            ? 'Delete'
+            : pendingAction?.type === 'add'
+            ? 'Continue'
+            : 'Edit'
+        }
+        isDanger={pendingAction?.type === 'delete'}
       />
     </SectionWrapper>
   );

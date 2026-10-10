@@ -34,27 +34,32 @@ export default function SkillsSection() {
   const [form, setForm] = useState(EMPTY_FORM);
 
   // ---- Handlers ----
-  const executePendingAction = () => {
-    if (!pendingAction) return;
-    if (pendingAction.type === 'add') {
+  const executeAction = (action) => {
+    if (!action) return;
+    if (action.type === 'add') {
       setEditingSkill(null);
       setForm(EMPTY_FORM);
       setModalOpen(true);
-    } else if (pendingAction.type === 'edit') {
-      const skill = pendingAction.payload;
+    } else if (action.type === 'edit') {
+      const skill = action.payload;
       setEditingSkill(skill);
       setForm({ name: skill.name, category: skill.category, proficiency: skill.proficiency });
       setModalOpen(true);
-    } else if (pendingAction.type === 'delete') {
-      const { id, name } = pendingAction.payload;
+    } else if (action.type === 'delete') {
+      const { id, name } = action.payload;
       deleteSkill(id);
       toast.success(`"${name}" deleted`);
     }
+  };
+
+  const executePendingAction = () => {
+    executeAction(pendingAction);
     setPendingAction(null);
     setAuthModalOpen(false);
   };
 
   const requireAuth = (action) => {
+    // Always require admin password for adding, editing, or deleting
     setPendingAction(action);
     setAuthModalOpen(true);
   };
@@ -78,7 +83,10 @@ export default function SkillsSection() {
     setModalOpen(false);
   };
 
-  const handleDelete = (id, name) => requireAuth({ type: 'delete', payload: { id, name } });
+  const handleDelete = (id, name) => {
+    setPendingAction({ type: 'delete', payload: { id, name } });
+    setAuthModalOpen(true);
+  };
 
   return (
     <SectionWrapper id="skills" title="Skills" subtitle="Technologies and tools I work with.">
@@ -135,13 +143,14 @@ export default function SkillsSection() {
                         {skill.name}
                       </span>
                       {/* Actions */}
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
                         <button
                           onClick={() => openEdit(skill)}
                           className={`p-1.5 rounded-lg cursor-pointer ${
                             isDark ? 'hover:bg-white/10 text-surface-200' : 'hover:bg-surface-100 text-surface-600'
                           }`}
                           title="Edit"
+                          aria-label={`Edit ${skill.name}`}
                         >
                           <IoCreateOutline size={16} />
                         </button>
@@ -149,6 +158,7 @@ export default function SkillsSection() {
                           onClick={() => handleDelete(skill.id, skill.name)}
                           className="p-1.5 rounded-lg hover:bg-danger-500/15 text-danger-500 cursor-pointer"
                           title="Delete"
+                          aria-label={`Delete ${skill.name}`}
                         >
                           <IoTrashOutline size={16} />
                         </button>
@@ -185,6 +195,12 @@ export default function SkillsSection() {
         );
       })}
 
+      {skills.length === 0 && (
+        <p className={`text-center mt-8 ${isDark ? 'text-surface-200/50' : 'text-surface-700/50'}`}>
+          No skills yet. Add one above!
+        </p>
+      )}
+
       {/* Add / Edit Modal */}
       <Modal
         isOpen={modalOpen}
@@ -199,6 +215,7 @@ export default function SkillsSection() {
             </label>
             <input
               type="text"
+              id="skill-name"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="e.g. React.js"
@@ -208,6 +225,7 @@ export default function SkillsSection() {
                   : 'bg-surface-50 border border-surface-200 text-surface-800 focus:border-primary-500 placeholder:text-surface-700/40'
               }`}
               autoFocus
+              required
             />
           </div>
 
@@ -218,6 +236,7 @@ export default function SkillsSection() {
             </label>
             <select
               value={form.category}
+              id="skill-category"
               onChange={(e) => setForm({ ...form, category: e.target.value })}
               className={`w-full px-4 py-2.5 rounded-xl outline-none transition-all cursor-pointer ${
                 isDark
@@ -243,6 +262,7 @@ export default function SkillsSection() {
               min="10"
               max="100"
               value={form.proficiency}
+              id="skill-proficiency"
               onChange={(e) => setForm({ ...form, proficiency: Number(e.target.value) })}
               className="w-full accent-primary-500"
             />
@@ -261,8 +281,33 @@ export default function SkillsSection() {
       {/* Auth Modal */}
       <PasswordPromptModal
         isOpen={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
+        onClose={() => {
+          setAuthModalOpen(false);
+          setPendingAction(null);
+        }}
         onSuccess={executePendingAction}
+        title={
+          pendingAction?.type === 'delete'
+            ? 'Confirm Deletion'
+            : pendingAction?.type === 'add'
+            ? 'Add Skill'
+            : 'Edit Skill'
+        }
+        description={
+          pendingAction?.type === 'delete'
+            ? `Please enter the password to delete "${pendingAction?.payload?.name}".`
+            : pendingAction?.type === 'add'
+            ? 'Please enter the password to add a new skill.'
+            : `Please enter the password to edit "${pendingAction?.payload?.name}".`
+        }
+        confirmText={
+          pendingAction?.type === 'delete'
+            ? 'Delete'
+            : pendingAction?.type === 'add'
+            ? 'Continue'
+            : 'Edit'
+        }
+        isDanger={pendingAction?.type === 'delete'}
       />
     </SectionWrapper>
   );
