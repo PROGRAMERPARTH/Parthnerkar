@@ -3,6 +3,9 @@
 .env.local
 .env.*.local
 
+# Personal portfolio data
+data/database.json
+
 # Logs
 logs
 *.log
