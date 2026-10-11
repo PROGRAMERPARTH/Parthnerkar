@@ -3,11 +3,11 @@
    Assembles all sections with loading screen
    ============================================ */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { DataProvider } from './context/DataContext';
-import LoadingScreen from './components/LoadingScreen';
+import IntroVideo from './components/IntroVideo';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import HeroSection from './sections/HeroSection';
@@ -21,18 +21,19 @@ import ContactSection from './sections/ContactSection';
 // Inner app that uses theme context
 function AppContent() {
   const { isDark } = useTheme();
-  const [loading, setLoading] = useState(true);
+  const [showIntro, setShowIntro] = useState(true);
 
-  useEffect(() => {
-    // Simulate app initialization
-    const timer = setTimeout(() => setLoading(false), 1800);
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (loading) return <LoadingScreen />;
+  // When intro video finishes or is skipped
+  const handleIntroComplete = () => {
+    setShowIntro(false);
+  };
 
   return (
-    <div className={`min-h-screen ${isDark ? 'bg-surface-900 text-surface-200' : 'bg-surface-50 text-surface-800'}`}>
+    <>
+      {showIntro && <IntroVideo onComplete={handleIntroComplete} />}
+
+      <div className={`min-h-screen ${isDark ? 'bg-surface-900 text-surface-200' : 'bg-surface-50 text-surface-800'}`}>
+
       {/* Toast notifications */}
       <Toaster
         position="top-right"
@@ -54,7 +55,7 @@ function AppContent() {
         }}
       />
 
-      <Navbar />
+      <Navbar onReplayIntro={() => setShowIntro(true)} />
 
       <main>
         <HeroSection />
@@ -68,6 +69,7 @@ function AppContent() {
 
       <Footer />
     </div>
+  </>
   );
 }
 

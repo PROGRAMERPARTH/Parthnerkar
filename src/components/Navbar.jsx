@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { IoSunny, IoMoon, IoMenu, IoClose } from 'react-icons/io5';
+import { IoSunny, IoMoon, IoMenu, IoClose, IoPlayCircleOutline } from 'react-icons/io5';
 import { useTheme } from '../context/ThemeContext';
 
 const NAV_LINKS = [
@@ -18,7 +18,7 @@ const NAV_LINKS = [
   { label: 'Contact', href: '#contact' },
 ];
 
-export default function Navbar() {
+export default function Navbar({ onReplayIntro }) {
   const { isDark, toggleTheme } = useTheme();
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -69,10 +69,27 @@ export default function Navbar() {
               </a>
             ))}
 
+            {/* Replay Intro Video */}
+            {onReplayIntro && (
+              <button
+                onClick={onReplayIntro}
+                className={`ml-2 p-2.5 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-medium ${
+                  isDark
+                    ? 'bg-white/8 hover:bg-white/15 text-primary-300 hover:text-white'
+                    : 'bg-surface-100 hover:bg-surface-200 text-primary-600 hover:text-primary-700'
+                }`}
+                title="Play Intro Video"
+                aria-label="Play Intro Video"
+              >
+                <IoPlayCircleOutline size={18} />
+                <span className="hidden lg:inline">Intro</span>
+              </button>
+            )}
+
             {/* Theme toggle */}
             <button
               onClick={toggleTheme}
-              className={`ml-2 p-2.5 rounded-xl transition-colors cursor-pointer ${
+              className={`ml-1 p-2.5 rounded-xl transition-colors cursor-pointer ${
                 isDark
                   ? 'bg-white/8 hover:bg-white/15 text-yellow-300'
                   : 'bg-surface-100 hover:bg-surface-200 text-primary-600'
@@ -85,6 +102,20 @@ export default function Navbar() {
 
           {/* Mobile menu button */}
           <div className="flex md:hidden items-center gap-2">
+            {onReplayIntro && (
+              <button
+                onClick={onReplayIntro}
+                className={`p-2.5 rounded-xl transition-colors cursor-pointer ${
+                  isDark
+                    ? 'bg-white/8 hover:bg-white/15 text-primary-300'
+                    : 'bg-surface-100 hover:bg-surface-200 text-primary-600'
+                }`}
+                title="Play Intro Video"
+                aria-label="Play Intro Video"
+              >
+                <IoPlayCircleOutline size={18} />
+              </button>
+            )}
             <button
               onClick={toggleTheme}
               className={`p-2.5 rounded-xl transition-colors cursor-pointer ${
